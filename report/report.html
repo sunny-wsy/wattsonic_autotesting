@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>report.html</title>
+    <style>body {
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 12px;
+  /* do not increase min-width as some may use split screens */
+  min-width: 800px;
+  color: #999;
+}
+
+h1 {
+  font-size: 24px;
+  color: black;
+}
+
+h2 {
+  font-size: 16px;
+  color: black;
+}
+
+p {
+  color: black;
+}
+
+a {
+  color: #999;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+/******************************
+ * SUMMARY INFORMATION
+ ******************************/
+#environment td {
+  padding: 5px;
+  border: 1px solid #E6E6E6;
+}
+#environment tr:nth-child(odd) {
+  background-color: #f6f6f6;
+}
+
+/******************************
+ * TEST RESULT COLORS
+ ******************************/
+span.passed,
+.passed .col-result {
+  color: green;
+}
+
+span.skipped,
+span.xfailed,
+span.rerun,
+.skipped .col-result,
+.xfailed .col-result,
+.rerun .col-result {
+  color: orange;
+}
+
+span.error,
+span.failed,
+span.xpassed,
+.error .col-result,
+.failed .col-result,
+.xpassed .col-result {
+  color: red;
+}
+
+/******************************
+ * RESULTS TABLE
+ *
+ * 1. Table Layout
+ * 2. Extra
+ * 3. Sorting items
+ *
+ ******************************/
+/*------------------
+ * 1. Table Layout
+ *------------------*/
+#results-table {
+  border: 1px solid #e6e6e6;
+  color: #999;
+  font-size: 12px;
+  width: 100%;
+}
+#results-table th,
+#results-table td {
+  padding: 5px;
+  border: 1px solid #E6E6E6;
+  text-align: left;
+}
+#results-table th {
+  font-weight: bold;
+}
+
+/*------------------
+ * 2. Extra
+ *------------------*/
+.log {
+  background-color: #e6e6e6;
+  border: 1px solid #e6e6e6;
+  color: black;
+  display: block;
+  font-family: "Courier New", Courier, monospace;
+  height: 230px;
+  overflow-y: scroll;
+  padding: 5px;
+  white-space: pre-wrap;
+}
+.log:only-child {
+  height: inherit;
+}
+
+div.image {
+  border: 1px solid #e6e6e6;
+  float: right;
+  height: 240px;
+  margin-left: 5px;
+  overflow: hidden;
+  width: 320px;
+}
+div.image img {
+  width: 320px;
+}
+
+div.video {
+  border: 1px solid #e6e6e6;
+  float: right;
+  height: 240px;
+  margin-left: 5px;
+  overflow: hidden;
+  width: 320px;
+}
+div.video video {
+  overflow: hidden;
+  width: 320px;
+  height: 240px;
+}
+
+.collapsed {
+  display: none;
+}
+
+.expander::after {
+  content: " (show details)";
+  color: #BBB;
+  font-style: italic;
+  cursor: pointer;
+}
+
+.collapser::after {
+  content: " (hide details)";
+  color: #BBB;
+  font-style: italic;
+  cursor: pointer;
+}
+
+/*------------------
+ * 3. Sorting items
+ *------------------*/
+.sortable {
+  cursor: pointer;
+}
+
+.sort-icon {
+  font-size: 0px;
+  float: left;
+  margin-right: 5px;
+  margin-top: 5px;
+  /*triangle*/
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+}
+.inactive .sort-icon {
+  /*finish triangle*/
+  border-top: 8px solid #E6E6E6;
+}
+.asc.active .sort-icon {
+  /*finish triangle*/
+  border-bottom: 8px solid #999;
+}
+.desc.active .sort-icon {
+  /*finish triangle*/
+  border-top: 8px solid #999;
+}
+</style></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    let visibleString = getQueryParameter('visible') || 'all';
+    visibleString = visibleString.toLowerCase();
+    const checkedItems = visibleString.split(',');
+
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++) {
+        filterItems[i].hidden = false;
+
+        if (visibleString != 'all') {
+            filterItems[i].checked = checkedItems.includes(filterItems[i].getAttribute('data-test-result'));
+            filterTable(filterItems[i]);
+        }
+    }
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>report.html</h1>
+    <p>Report generated on 26-Feb-2024 at 16:33:34 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.2.0</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "1.0.0", "py": "1.11.0", "pytest": "7.0.1"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Windows-10-10.0.22621-SP0</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"html": "3.2.0", "metadata": "1.11.0", "ordering": "0.6"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.6.6</td></tr></table>
+    <h2>Summary</h2>
+    <p>16 tests ran in 2.95 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">16 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">0 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Auto_case/test_001_register.py::Test_001_register::test_countrylist[/countryMap/list]</td>
+          <td class="col-duration">0.14</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>http://121.40.203.12:8888/countryMap/list
+200
+{&#x27;code&#x27;: &#x27;0000&#x27;, &#x27;msg&#x27;: &#x27;Success&#x27;, &#x27;data&#x27;: [{&#x27;id&#x27;: 1729735687050813449, &#x27;areaCode&#x27;: &#x27;AF&#x27;, &#x27;commonName&#x27;: &#x27;Afghanistan&#x27;, &#x27;officialName&#x27;: &#x27;Islamic Republic of Afghanistan&#x27;, &#x27;longitude&#x27;: 33.0, &#x27;latitude&#x27;: 65.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790049, &#x27;areaCode&#x27;: &#x27;AX&#x27;, &#x27;commonName&#x27;: &#x27;Åland Islands&#x27;, &#x27;officialName&#x27;: &#x27;Åland Islands&#x27;, &#x27;longitude&#x27;: 60.116667, &#x27;latitude&#x27;: 19.9, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865388, &#x27;areaCode&#x27;: &#x27;AL&#x27;, &#x27;commonName&#x27;: &#x27;Albania&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Albania&#x27;, &#x27;longitude&#x27;: 41.0, &#x27;latitude&#x27;: 20.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704604, &#x27;areaCode&#x27;: &#x27;DZ&#x27;, &#x27;commonName&#x27;: &#x27;Algeria&#x27;, &#x27;officialName&#x27;: &quot;People&#x27;s Democratic Republic of Algeria&quot;, &#x27;longitude&#x27;: 28.0, &#x27;latitude&#x27;: 3.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790033, &#x27;areaCode&#x27;: &#x27;AS&#x27;, &#x27;commonName&#x27;: &#x27;American Samoa&#x27;, &#x27;officialName&#x27;: &#x27;American Samoa&#x27;, &#x27;longitude&#x27;: -14.33333333, &#x27;latitude&#x27;: -170.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865405, &#x27;areaCode&#x27;: &#x27;AD&#x27;, &#x27;commonName&#x27;: &#x27;Andorra&#x27;, &#x27;officialName&#x27;: &#x27;Principality of Andorra&#x27;, &#x27;longitude&#x27;: 42.5, &#x27;latitude&#x27;: 1.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790045, &#x27;areaCode&#x27;: &#x27;AO&#x27;, &#x27;commonName&#x27;: &#x27;Angola&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Angola&#x27;, &#x27;longitude&#x27;: -12.5, &#x27;latitude&#x27;: 18.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865374, &#x27;areaCode&#x27;: &#x27;AI&#x27;, &#x27;commonName&#x27;: &#x27;Anguilla&#x27;, &#x27;officialName&#x27;: &#x27;Anguilla&#x27;, &#x27;longitude&#x27;: 18.25, &#x27;latitude&#x27;: -63.16666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687109533701, &#x27;areaCode&#x27;: &#x27;AQ&#x27;, &#x27;commonName&#x27;: &#x27;Antarctica&#x27;, &#x27;officialName&#x27;: &#x27;Antarctica&#x27;, &#x27;longitude&#x27;: -90.0, &#x27;latitude&#x27;: 0.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813470, &#x27;areaCode&#x27;: &#x27;AG&#x27;, &#x27;commonName&#x27;: &#x27;Antigua and Barbuda&#x27;, &#x27;officialName&#x27;: &#x27;Antigua and Barbuda&#x27;, &#x27;longitude&#x27;: 17.05, &#x27;latitude&#x27;: -61.8, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687138893830, &#x27;areaCode&#x27;: &#x27;AR&#x27;, &#x27;commonName&#x27;: &#x27;Argentina&#x27;, &#x27;officialName&#x27;: &#x27;Argentine Republic&#x27;, &#x27;longitude&#x27;: -34.0, &#x27;latitude&#x27;: -64.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790039, &#x27;areaCode&#x27;: &#x27;AM&#x27;, &#x27;commonName&#x27;: &#x27;Armenia&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Armenia&#x27;, &#x27;longitude&#x27;: 40.0, &#x27;latitude&#x27;: 45.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813466, &#x27;areaCode&#x27;: &#x27;AW&#x27;, &#x27;commonName&#x27;: &#x27;Aruba&#x27;, &#x27;officialName&#x27;: &#x27;Aruba&#x27;, &#x27;longitude&#x27;: 12.5, &#x27;latitude&#x27;: -69.96666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140041, &#x27;areaCode&#x27;: &#x27;AU&#x27;, &#x27;commonName&#x27;: &#x27;Australia&#x27;, &#x27;officialName&#x27;: &#x27;Commonwealth of Australia&#x27;, &#x27;longitude&#x27;: -27.0, &#x27;latitude&#x27;: 133.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865387, &#x27;areaCode&#x27;: &#x27;AT&#x27;, &#x27;commonName&#x27;: &#x27;Austria&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Austria&#x27;, &#x27;longitude&#x27;: 47.33333333, &#x27;latitude&#x27;: 13.33333333, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687294083073, &#x27;areaCode&#x27;: &#x27;AZ&#x27;, &#x27;commonName&#x27;: &#x27;Azerbaijan&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Azerbaijan&#x27;, &#x27;longitude&#x27;: 40.5, &#x27;latitude&#x27;: 47.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865367, &#x27;areaCode&#x27;: &#x27;BS&#x27;, &#x27;commonName&#x27;: &#x27;Bahamas&#x27;, &#x27;officialName&#x27;: &#x27;Commonwealth of the Bahamas&#x27;, &#x27;longitude&#x27;: 25.0343, &#x27;latitude&#x27;: -77.3963, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865408, &#x27;areaCode&#x27;: &#x27;BH&#x27;, &#x27;commonName&#x27;: &#x27;Bahrain&#x27;, &#x27;officialName&#x27;: &#x27;Kingdom of Bahrain&#x27;, &#x27;longitude&#x27;: 26.0, &#x27;latitude&#x27;: 50.55, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865361, &#x27;areaCode&#x27;: &#x27;BD&#x27;, &#x27;commonName&#x27;: &#x27;Bangladesh&#x27;, &#x27;officialName&#x27;: &quot;People&#x27;s Republic of Bangladesh&quot;, &#x27;longitude&#x27;: 24.0, &#x27;latitude&#x27;: 90.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865399, &#x27;areaCode&#x27;: &#x27;BB&#x27;, &#x27;commonName&#x27;: &#x27;Barbados&#x27;, &#x27;officialName&#x27;: &#x27;Barbados&#x27;, &#x27;longitude&#x27;: 13.16666666, &#x27;latitude&#x27;: -59.53333333, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140043, &#x27;areaCode&#x27;: &#x27;BY&#x27;, &#x27;commonName&#x27;: &#x27;Belarus&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Belarus&#x27;, &#x27;longitude&#x27;: 53.0, &#x27;latitude&#x27;: 28.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865377, &#x27;areaCode&#x27;: &#x27;BE&#x27;, &#x27;commonName&#x27;: &#x27;Belgium&#x27;, &#x27;officialName&#x27;: &#x27;Kingdom of Belgium&#x27;, &#x27;longitude&#x27;: 50.83333333, &#x27;latitude&#x27;: 4.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865355, &#x27;areaCode&#x27;: &#x27;BZ&#x27;, &#x27;commonName&#x27;: &#x27;Belize&#x27;, &#x27;officialName&#x27;: &#x27;Belize&#x27;, &#x27;longitude&#x27;: 17.25, &#x27;latitude&#x27;: -88.75, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687138893837, &#x27;areaCode&#x27;: &#x27;BJ&#x27;, &#x27;commonName&#x27;: &#x27;Benin&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Benin&#x27;, &#x27;longitude&#x27;: 9.5, &#x27;latitude&#x27;: 2.25, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687109533715, &#x27;areaCode&#x27;: &#x27;BM&#x27;, &#x27;commonName&#x27;: &#x27;Bermuda&#x27;, &#x27;officialName&#x27;: &#x27;Bermuda&#x27;, &#x27;longitude&#x27;: 32.33333333, &#x27;latitude&#x27;: -64.75, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140049, &#x27;areaCode&#x27;: &#x27;BT&#x27;, &#x27;commonName&#x27;: &#x27;Bhutan&#x27;, &#x27;officialName&#x27;: &#x27;Kingdom of Bhutan&#x27;, &#x27;longitude&#x27;: 27.5, &#x27;latitude&#x27;: 90.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865379, &#x27;areaCode&#x27;: &#x27;BO&#x27;, &#x27;commonName&#x27;: &#x27;Bolivia&#x27;, &#x27;officialName&#x27;: &#x27;Plurinational State of Bolivia&#x27;, &#x27;longitude&#x27;: -17.0, &#x27;latitude&#x27;: -65.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704581, &#x27;areaCode&#x27;: &#x27;BA&#x27;, &#x27;commonName&#x27;: &#x27;Bosnia and Herzegovina&#x27;, &#x27;officialName&#x27;: &#x27;Bosnia and Herzegovina&#x27;, &#x27;longitude&#x27;: 44.0, &#x27;latitude&#x27;: 18.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704591, &#x27;areaCode&#x27;: &#x27;BW&#x27;, &#x27;commonName&#x27;: &#x27;Botswana&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Botswana&#x27;, &#x27;longitude&#x27;: -22.0, &#x27;latitude&#x27;: 24.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687109533702, &#x27;areaCode&#x27;: &#x27;BV&#x27;, &#x27;commonName&#x27;: &#x27;Bouvet Island&#x27;, &#x27;officialName&#x27;: &#x27;Bouvet Island&#x27;, &#x27;longitude&#x27;: 54.4208, &#x27;latitude&#x27;: 3.3464, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687025647624, &#x27;areaCode&#x27;: &#x27;BR&#x27;, &#x27;commonName&#x27;: &#x27;Brazil&#x27;, &#x27;officialName&#x27;: &#x27;Federative Republic of Brazil&#x27;, &#x27;longitude&#x27;: -10.0, &#x27;latitude&#x27;: -55.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790042, &#x27;areaCode&#x27;: &#x27;IO&#x27;, &#x27;commonName&#x27;: &#x27;British Indian Ocean Territory&#x27;, &#x27;officialName&#x27;: &#x27;British Indian Ocean Territory&#x27;, &#x27;longitude&#x27;: -6.0, &#x27;latitude&#x27;: 71.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865389, &#x27;areaCode&#x27;: &#x27;VG&#x27;, &#x27;commonName&#x27;: &#x27;British Virgin Islands&#x27;, &#x27;officialName&#x27;: &#x27;Virgin Islands&#x27;, &#x27;longitude&#x27;: 18.431383, &#x27;latitude&#x27;: -64.62305, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140038, &#x27;areaCode&#x27;: &#x27;BN&#x27;, &#x27;commonName&#x27;: &#x27;Brunei&#x27;, &#x27;officialName&#x27;: &#x27;Nation of Brunei, Abode of Peace&#x27;, &#x27;longitude&#x27;: 4.5, &#x27;latitude&#x27;: 114.66666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140063, &#x27;areaCode&#x27;: &#x27;BG&#x27;, &#x27;commonName&#x27;: &#x27;Bulgaria&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Bulgaria&#x27;, &#x27;longitude&#x27;: 43.0, &#x27;latitude&#x27;: 25.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865360, &#x27;areaCode&#x27;: &#x27;BF&#x27;, &#x27;commonName&#x27;: &#x27;Burkina Faso&#x27;, &#x27;officialName&#x27;: &#x27;Burkina Faso&#x27;, &#x27;longitude&#x27;: 13.0, &#x27;latitude&#x27;: -2.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704596, &#x27;areaCode&#x27;: &#x27;BI&#x27;, &#x27;commonName&#x27;: &#x27;Burundi&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Burundi&#x27;, &#x27;longitude&#x27;: -3.5, &#x27;latitude&#x27;: 30.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687109533712, &#x27;areaCode&#x27;: &#x27;KH&#x27;, &#x27;commonName&#x27;: &#x27;Cambodia&#x27;, &#x27;officialName&#x27;: &#x27;Kingdom of Cambodia&#x27;, &#x27;longitude&#x27;: 13.0, &#x27;latitude&#x27;: 105.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687109533708, &#x27;areaCode&#x27;: &#x27;CM&#x27;, &#x27;commonName&#x27;: &#x27;Cameroon&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Cameroon&#x27;, &#x27;longitude&#x27;: 6.0, &#x27;latitude&#x27;: 12.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140056, &#x27;areaCode&#x27;: &#x27;CA&#x27;, &#x27;commonName&#x27;: &#x27;Canada&#x27;, &#x27;officialName&#x27;: &#x27;Canada&#x27;, &#x27;longitude&#x27;: 60.0, &#x27;latitude&#x27;: -95.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813456, &#x27;areaCode&#x27;: &#x27;CV&#x27;, &#x27;commonName&#x27;: &#x27;Cape Verde&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Cabo Verde&#x27;, &#x27;longitude&#x27;: 16.5388, &#x27;latitude&#x27;: 23.0418, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704603, &#x27;areaCode&#x27;: &#x27;BQ&#x27;, &#x27;commonName&#x27;: &#x27;Caribbean Netherlands&#x27;, &#x27;officialName&#x27;: &#x27;Bonaire, Sint Eustatius and Saba&#x27;, &#x27;longitude&#x27;: 12.18, &#x27;latitude&#x27;: -68.25, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865402, &#x27;areaCode&#x27;: &#x27;KY&#x27;, &#x27;commonName&#x27;: &#x27;Cayman Islands&#x27;, &#x27;officialName&#x27;: &#x27;Cayman Islands&#x27;, &#x27;longitude&#x27;: 19.3133, &#x27;latitude&#x27;: -81.2546, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865375, &#x27;areaCode&#x27;: &#x27;CF&#x27;, &#x27;commonName&#x27;: &#x27;Central African Republic&#x27;, &#x27;officialName&#x27;: &#x27;Central African Republic&#x27;, &#x27;longitude&#x27;: 7.0, &#x27;latitude&#x27;: 21.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687025647619, &#x27;areaCode&#x27;: &#x27;TD&#x27;, &#x27;commonName&#x27;: &#x27;Chad&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Chad&#x27;, &#x27;longitude&#x27;: 15.0, &#x27;latitude&#x27;: 19.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813453, &#x27;areaCode&#x27;: &#x27;CL&#x27;, &#x27;commonName&#x27;: &#x27;Chile&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Chile&#x27;, &#x27;longitude&#x27;: -30.0, &#x27;latitude&#x27;: -71.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813448, &#x27;areaCode&#x27;: &#x27;CN&#x27;, &#x27;commonName&#x27;: &#x27;China&#x27;, &#x27;officialName&#x27;: &quot;People&#x27;s Republic of China&quot;, &#x27;longitude&#x27;: 35.0, &#x27;latitude&#x27;: 105.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790018, &#x27;areaCode&#x27;: &#x27;CX&#x27;, &#x27;commonName&#x27;: &#x27;Christmas Island&#x27;, &#x27;officialName&#x27;: &#x27;Territory of Christmas Island&#x27;, &#x27;longitude&#x27;: -10.5, &#x27;latitude&#x27;: 105.66666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140053, &#x27;areaCode&#x27;: &#x27;CC&#x27;, &#x27;commonName&#x27;: &#x27;Cocos (Keeling) Islands&#x27;, &#x27;officialName&#x27;: &#x27;Territory of the Cocos (Keeling) Islands&#x27;, &#x27;longitude&#x27;: 12.1642, &#x27;latitude&#x27;: 96.871, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813444, &#x27;areaCode&#x27;: &#x27;CO&#x27;, &#x27;commonName&#x27;: &#x27;Colombia&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Colombia&#x27;, &#x27;longitude&#x27;: 4.0, &#x27;latitude&#x27;: -72.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813468, &#x27;areaCode&#x27;: &#x27;KM&#x27;, &#x27;commonName&#x27;: &#x27;Comoros&#x27;, &#x27;officialName&#x27;: &#x27;Union of the Comoros&#x27;, &#x27;longitude&#x27;: -12.16666666, &#x27;latitude&#x27;: 44.25, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813478, &#x27;areaCode&#x27;: &#x27;CK&#x27;, &#x27;commonName&#x27;: &#x27;Cook Islands&#x27;, &#x27;officialName&#x27;: &#x27;Cook Islands&#x27;, &#x27;longitude&#x27;: -21.23333333, &#x27;latitude&#x27;: -159.76666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140061, &#x27;areaCode&#x27;: &#x27;CR&#x27;, &#x27;commonName&#x27;: &#x27;Costa Rica&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Costa Rica&#x27;, &#x27;longitude&#x27;: 10.0, &#x27;latitude&#x27;: -84.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687298277377, &#x27;areaCode&#x27;: &#x27;HR&#x27;, &#x27;commonName&#x27;: &#x27;Croatia&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Croatia&#x27;, &#x27;longitude&#x27;: 45.16666666, &#x27;latitude&#x27;: 15.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687109533717, &#x27;areaCode&#x27;: &#x27;CU&#x27;, &#x27;commonName&#x27;: &#x27;Cuba&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Cuba&#x27;, &#x27;longitude&#x27;: 21.5, &#x27;latitude&#x27;: -80.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790040, &#x27;areaCode&#x27;: &#x27;CW&#x27;, &#x27;commonName&#x27;: &#x27;Curaçao&#x27;, &#x27;officialName&#x27;: &#x27;Country of Curaçao&#x27;, &#x27;longitude&#x27;: 12.116667, &#x27;latitude&#x27;: -68.933333, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687109533703, &#x27;areaCode&#x27;: &#x27;CY&#x27;, &#x27;commonName&#x27;: &#x27;Cyprus&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Cyprus&#x27;, &#x27;longitude&#x27;: 35.0, &#x27;latitude&#x27;: 33.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704585, &#x27;areaCode&#x27;: &#x27;CZ&#x27;, &#x27;commonName&#x27;: &#x27;Czechia&#x27;, &#x27;officialName&#x27;: &#x27;Czech Republic&#x27;, &#x27;longitude&#x27;: 49.75, &#x27;latitude&#x27;: 15.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790028, &#x27;areaCode&#x27;: &#x27;DK&#x27;, &#x27;commonName&#x27;: &#x27;Denmark&#x27;, &#x27;officialName&#x27;: &#x27;Kingdom of Denmark&#x27;, &#x27;longitude&#x27;: 56.0, &#x27;latitude&#x27;: 10.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790022, &#x27;areaCode&#x27;: &#x27;DJ&#x27;, &#x27;commonName&#x27;: &#x27;Djibouti&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Djibouti&#x27;, &#x27;longitude&#x27;: 11.5, &#x27;latitude&#x27;: 43.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140055, &#x27;areaCode&#x27;: &#x27;DM&#x27;, &#x27;commonName&#x27;: &#x27;Dominica&#x27;, &#x27;officialName&#x27;: &#x27;Commonwealth of Dominica&#x27;, &#x27;longitude&#x27;: 15.41666666, &#x27;latitude&#x27;: -61.33333333, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865353, &#x27;areaCode&#x27;: &#x27;DO&#x27;, &#x27;commonName&#x27;: &#x27;Dominican Republic&#x27;, &#x27;officialName&#x27;: &#x27;Dominican Republic&#x27;, &#x27;longitude&#x27;: 19.0, &#x27;latitude&#x27;: -70.66666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687109533707, &#x27;areaCode&#x27;: &#x27;CD&#x27;, &#x27;commonName&#x27;: &#x27;DR Congo&#x27;, &#x27;officialName&#x27;: &#x27;Democratic Republic of the Congo&#x27;, &#x27;longitude&#x27;: 0.0, &#x27;latitude&#x27;: 25.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865406, &#x27;areaCode&#x27;: &#x27;EC&#x27;, &#x27;commonName&#x27;: &#x27;Ecuador&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Ecuador&#x27;, &#x27;longitude&#x27;: -2.0, &#x27;latitude&#x27;: -77.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865347, &#x27;areaCode&#x27;: &#x27;EG&#x27;, &#x27;commonName&#x27;: &#x27;Egypt&#x27;, &#x27;officialName&#x27;: &#x27;Arab Republic of Egypt&#x27;, &#x27;longitude&#x27;: 27.0, &#x27;latitude&#x27;: 30.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865370, &#x27;areaCode&#x27;: &#x27;SV&#x27;, &#x27;commonName&#x27;: &#x27;El Salvador&#x27;, &#x27;officialName&#x27;: &#x27;Republic of El Salvador&#x27;, &#x27;longitude&#x27;: 13.83333333, &#x27;latitude&#x27;: -88.91666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790043, &#x27;areaCode&#x27;: &#x27;GQ&#x27;, &#x27;commonName&#x27;: &#x27;Equatorial Guinea&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Equatorial Guinea&#x27;, &#x27;longitude&#x27;: 2.0, &#x27;latitude&#x27;: 10.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790019, &#x27;areaCode&#x27;: &#x27;ER&#x27;, &#x27;commonName&#x27;: &#x27;Eritrea&#x27;, &#x27;officialName&#x27;: &#x27;State of Eritrea&#x27;, &#x27;longitude&#x27;: 15.0, &#x27;latitude&#x27;: 39.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704588, &#x27;areaCode&#x27;: &#x27;EE&#x27;, &#x27;commonName&#x27;: &#x27;Estonia&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Estonia&#x27;, &#x27;longitude&#x27;: 59.0, &#x27;latitude&#x27;: 26.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813479, &#x27;areaCode&#x27;: &#x27;SZ&#x27;, &#x27;commonName&#x27;: &#x27;Eswatini&#x27;, &#x27;officialName&#x27;: &#x27;Kingdom of Eswatini&#x27;, &#x27;longitude&#x27;: -26.5, &#x27;latitude&#x27;: 31.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865352, &#x27;areaCode&#x27;: &#x27;ET&#x27;, &#x27;commonName&#x27;: &#x27;Ethiopia&#x27;, &#x27;officialName&#x27;: &#x27;Federal Democratic Republic of Ethiopia&#x27;, &#x27;longitude&#x27;: 8.0, &#x27;latitude&#x27;: 38.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140052, &#x27;areaCode&#x27;: &#x27;FK&#x27;, &#x27;commonName&#x27;: &#x27;Falkland Islands&#x27;, &#x27;officialName&#x27;: &#x27;Falkland Islands&#x27;, &#x27;longitude&#x27;: -51.75, &#x27;latitude&#x27;: -59.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704598, &#x27;areaCode&#x27;: &#x27;FO&#x27;, &#x27;commonName&#x27;: &#x27;Faroe Islands&#x27;, &#x27;officialName&#x27;: &#x27;Faroe Islands&#x27;, &#x27;longitude&#x27;: 62.0, &#x27;latitude&#x27;: -7.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687109533699, &#x27;areaCode&#x27;: &#x27;FJ&#x27;, &#x27;commonName&#x27;: &#x27;Fiji&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Fiji&#x27;, &#x27;longitude&#x27;: 17.7134, &#x27;latitude&#x27;: 178.065, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687025647620, &#x27;areaCode&#x27;: &#x27;FI&#x27;, &#x27;commonName&#x27;: &#x27;Finland&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Finland&#x27;, &#x27;longitude&#x27;: 64.0, &#x27;latitude&#x27;: 26.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704605, &#x27;areaCode&#x27;: &#x27;FR&#x27;, &#x27;commonName&#x27;: &#x27;France&#x27;, &#x27;officialName&#x27;: &#x27;French Republic&#x27;, &#x27;longitude&#x27;: 46.0, &#x27;latitude&#x27;: 2.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865391, &#x27;areaCode&#x27;: &#x27;GF&#x27;, &#x27;commonName&#x27;: &#x27;French Guiana&#x27;, &#x27;officialName&#x27;: &#x27;Guiana&#x27;, &#x27;longitude&#x27;: 4.0, &#x27;latitude&#x27;: -53.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790025, &#x27;areaCode&#x27;: &#x27;PF&#x27;, &#x27;commonName&#x27;: &#x27;French Polynesia&#x27;, &#x27;officialName&#x27;: &#x27;French Polynesia&#x27;, &#x27;longitude&#x27;: 17.6797, &#x27;latitude&#x27;: 149.4068, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687109533711, &#x27;areaCode&#x27;: &#x27;TF&#x27;, &#x27;commonName&#x27;: &#x27;French Southern and Antarctic Lands&#x27;, &#x27;officialName&#x27;: &#x27;Territory of the French Southern and Antarctic Lands&#x27;, &#x27;longitude&#x27;: -49.25, &#x27;latitude&#x27;: 69.167, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140054, &#x27;areaCode&#x27;: &#x27;GA&#x27;, &#x27;commonName&#x27;: &#x27;Gabon&#x27;, &#x27;officialName&#x27;: &#x27;Gabonese Republic&#x27;, &#x27;longitude&#x27;: -1.0, &#x27;latitude&#x27;: 11.75, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813459, &#x27;areaCode&#x27;: &#x27;GM&#x27;, &#x27;commonName&#x27;: &#x27;Gambia&#x27;, &#x27;officialName&#x27;: &#x27;Republic of the Gambia&#x27;, &#x27;longitude&#x27;: 13.46666666, &#x27;latitude&#x27;: -16.56666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865351, &#x27;areaCode&#x27;: &#x27;GE&#x27;, &#x27;commonName&#x27;: &#x27;Georgia&#x27;, &#x27;officialName&#x27;: &#x27;Georgia&#x27;, &#x27;longitude&#x27;: 42.0, &#x27;latitude&#x27;: 43.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813441, &#x27;areaCode&#x27;: &#x27;DE&#x27;, &#x27;commonName&#x27;: &#x27;Germany&#x27;, &#x27;officialName&#x27;: &#x27;Federal Republic of Germany&#x27;, &#x27;longitude&#x27;: 51.0, &#x27;latitude&#x27;: 9.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790030, &#x27;areaCode&#x27;: &#x27;GH&#x27;, &#x27;commonName&#x27;: &#x27;Ghana&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Ghana&#x27;, &#x27;longitude&#x27;: 8.0, &#x27;latitude&#x27;: -2.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813473, &#x27;areaCode&#x27;: &#x27;GI&#x27;, &#x27;commonName&#x27;: &#x27;Gibraltar&#x27;, &#x27;officialName&#x27;: &#x27;Gibraltar&#x27;, &#x27;longitude&#x27;: 36.13333333, &#x27;latitude&#x27;: -5.35, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865396, &#x27;areaCode&#x27;: &#x27;GR&#x27;, &#x27;commonName&#x27;: &#x27;Greece&#x27;, &#x27;officialName&#x27;: &#x27;Hellenic Republic&#x27;, &#x27;longitude&#x27;: 39.0, &#x27;latitude&#x27;: 22.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704607, &#x27;areaCode&#x27;: &#x27;GL&#x27;, &#x27;commonName&#x27;: &#x27;Greenland&#x27;, &#x27;officialName&#x27;: &#x27;Greenland&#x27;, &#x27;longitude&#x27;: 72.0, &#x27;latitude&#x27;: -40.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687138893831, &#x27;areaCode&#x27;: &#x27;GD&#x27;, &#x27;commonName&#x27;: &#x27;Grenada&#x27;, &#x27;officialName&#x27;: &#x27;Grenada&#x27;, &#x27;longitude&#x27;: 12.11666666, &#x27;latitude&#x27;: -61.66666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790041, &#x27;areaCode&#x27;: &#x27;GP&#x27;, &#x27;commonName&#x27;: &#x27;Guadeloupe&#x27;, &#x27;officialName&#x27;: &#x27;Guadeloupe&#x27;, &#x27;longitude&#x27;: 16.25, &#x27;latitude&#x27;: -61.583333, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140040, &#x27;areaCode&#x27;: &#x27;GU&#x27;, &#x27;commonName&#x27;: &#x27;Guam&#x27;, &#x27;officialName&#x27;: &#x27;Guam&#x27;, &#x27;longitude&#x27;: 13.46666666, &#x27;latitude&#x27;: 144.78333333, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704586, &#x27;areaCode&#x27;: &#x27;GT&#x27;, &#x27;commonName&#x27;: &#x27;Guatemala&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Guatemala&#x27;, &#x27;longitude&#x27;: 15.5, &#x27;latitude&#x27;: -90.25, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704602, &#x27;areaCode&#x27;: &#x27;GG&#x27;, &#x27;commonName&#x27;: &#x27;Guernsey&#x27;, &#x27;officialName&#x27;: &#x27;Bailiwick of Guernsey&#x27;, &#x27;longitude&#x27;: 49.46666666, &#x27;latitude&#x27;: -2.58333333, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140035, &#x27;areaCode&#x27;: &#x27;GN&#x27;, &#x27;commonName&#x27;: &#x27;Guinea&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Guinea&#x27;, &#x27;longitude&#x27;: 11.0, &#x27;latitude&#x27;: -10.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865398, &#x27;areaCode&#x27;: &#x27;GW&#x27;, &#x27;commonName&#x27;: &#x27;Guinea-Bissau&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Guinea-Bissau&#x27;, &#x27;longitude&#x27;: 12.0, &#x27;latitude&#x27;: -15.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687138893835, &#x27;areaCode&#x27;: &#x27;GY&#x27;, &#x27;commonName&#x27;: &#x27;Guyana&#x27;, &#x27;officialName&#x27;: &#x27;Co-operative Republic of Guyana&#x27;, &#x27;longitude&#x27;: 5.0, &#x27;latitude&#x27;: -59.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865358, &#x27;areaCode&#x27;: &#x27;HT&#x27;, &#x27;commonName&#x27;: &#x27;Haiti&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Haiti&#x27;, &#x27;longitude&#x27;: 19.0, &#x27;latitude&#x27;: -72.41666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140036, &#x27;areaCode&#x27;: &#x27;HM&#x27;, &#x27;commonName&#x27;: &#x27;Heard Island and McDonald Islands&#x27;, &#x27;officialName&#x27;: &#x27;Heard Island and McDonald Islands&#x27;, &#x27;longitude&#x27;: 53.0818, &#x27;latitude&#x27;: 73.5042, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865400, &#x27;areaCode&#x27;: &#x27;HN&#x27;, &#x27;commonName&#x27;: &#x27;Honduras&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Honduras&#x27;, &#x27;longitude&#x27;: 15.0, &#x27;latitude&#x27;: -86.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687109533718, &#x27;areaCode&#x27;: &#x27;HK&#x27;, &#x27;commonName&#x27;: &#x27;Hong Kong&#x27;, &#x27;officialName&#x27;: &quot;Hong Kong Special Administrative Region of the People&#x27;s Republic of China&quot;, &#x27;longitude&#x27;: 22.267, &#x27;latitude&#x27;: 114.188, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140060, &#x27;areaCode&#x27;: &#x27;HU&#x27;, &#x27;commonName&#x27;: &#x27;Hungary&#x27;, &#x27;officialName&#x27;: &#x27;Hungary&#x27;, &#x27;longitude&#x27;: 47.0, &#x27;latitude&#x27;: 20.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813458, &#x27;areaCode&#x27;: &#x27;IS&#x27;, &#x27;commonName&#x27;: &#x27;Iceland&#x27;, &#x27;officialName&#x27;: &#x27;Iceland&#x27;, &#x27;longitude&#x27;: 65.0, &#x27;latitude&#x27;: -18.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813464, &#x27;areaCode&#x27;: &#x27;IN&#x27;, &#x27;commonName&#x27;: &#x27;India&#x27;, &#x27;officialName&#x27;: &#x27;Republic of India&#x27;, &#x27;longitude&#x27;: 20.0, &#x27;latitude&#x27;: 77.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813474, &#x27;areaCode&#x27;: &#x27;ID&#x27;, &#x27;commonName&#x27;: &#x27;Indonesia&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Indonesia&#x27;, &#x27;longitude&#x27;: -5.0, &#x27;latitude&#x27;: 120.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687294083075, &#x27;areaCode&#x27;: &#x27;IR&#x27;, &#x27;commonName&#x27;: &#x27;Iran&#x27;, &#x27;officialName&#x27;: &#x27;Islamic Republic of Iran&#x27;, &#x27;longitude&#x27;: 32.0, &#x27;latitude&#x27;: 53.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704594, &#x27;areaCode&#x27;: &#x27;IQ&#x27;, &#x27;commonName&#x27;: &#x27;Iraq&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Iraq&#x27;, &#x27;longitude&#x27;: 33.0, &#x27;latitude&#x27;: 44.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790026, &#x27;areaCode&#x27;: &#x27;IE&#x27;, &#x27;commonName&#x27;: &#x27;Ireland&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Ireland&#x27;, &#x27;longitude&#x27;: 53.0, &#x27;latitude&#x27;: -8.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865356, &#x27;areaCode&#x27;: &#x27;IM&#x27;, &#x27;commonName&#x27;: &#x27;Isle of Man&#x27;, &#x27;officialName&#x27;: &#x27;Isle of Man&#x27;, &#x27;longitude&#x27;: 54.25, &#x27;latitude&#x27;: -4.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140062, &#x27;areaCode&#x27;: &#x27;IL&#x27;, &#x27;commonName&#x27;: &#x27;Israel&#x27;, &#x27;officialName&#x27;: &#x27;State of Israel&#x27;, &#x27;longitude&#x27;: 31.47, &#x27;latitude&#x27;: 35.13, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865403, &#x27;areaCode&#x27;: &#x27;IT&#x27;, &#x27;commonName&#x27;: &#x27;Italy&#x27;, &#x27;officialName&#x27;: &#x27;Italian Republic&#x27;, &#x27;longitude&#x27;: 42.83333333, &#x27;latitude&#x27;: 12.83333333, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687298277378, &#x27;areaCode&#x27;: &#x27;CI&#x27;, &#x27;commonName&#x27;: &#x27;Ivory Coast&#x27;, &#x27;officialName&#x27;: &quot;Republic of Côte d&#x27;Ivoire&quot;, &#x27;longitude&#x27;: 8.0, &#x27;latitude&#x27;: -5.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865364, &#x27;areaCode&#x27;: &#x27;JM&#x27;, &#x27;commonName&#x27;: &#x27;Jamaica&#x27;, &#x27;officialName&#x27;: &#x27;Jamaica&#x27;, &#x27;longitude&#x27;: 18.25, &#x27;latitude&#x27;: -77.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687025647627, &#x27;areaCode&#x27;: &#x27;JP&#x27;, &#x27;commonName&#x27;: &#x27;Japan&#x27;, &#x27;officialName&#x27;: &#x27;Japan&#x27;, &#x27;longitude&#x27;: 36.0, &#x27;latitude&#x27;: 138.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813457, &#x27;areaCode&#x27;: &#x27;JE&#x27;, &#x27;commonName&#x27;: &#x27;Jersey&#x27;, &#x27;officialName&#x27;: &#x27;Bailiwick of Jersey&#x27;, &#x27;longitude&#x27;: 49.25, &#x27;latitude&#x27;: -2.16666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790023, &#x27;areaCode&#x27;: &#x27;JO&#x27;, &#x27;commonName&#x27;: &#x27;Jordan&#x27;, &#x27;officialName&#x27;: &#x27;Hashemite Kingdom of Jordan&#x27;, &#x27;longitude&#x27;: 31.0, &#x27;latitude&#x27;: 36.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687025647629, &#x27;areaCode&#x27;: &#x27;KZ&#x27;, &#x27;commonName&#x27;: &#x27;Kazakhstan&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Kazakhstan&#x27;, &#x27;longitude&#x27;: 48.0196, &#x27;latitude&#x27;: 66.9237, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865407, &#x27;areaCode&#x27;: &#x27;KE&#x27;, &#x27;commonName&#x27;: &#x27;Kenya&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Kenya&#x27;, &#x27;longitude&#x27;: 1.0, &#x27;latitude&#x27;: 38.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813455, &#x27;areaCode&#x27;: &#x27;KI&#x27;, &#x27;commonName&#x27;: &#x27;Kiribati&#x27;, &#x27;officialName&#x27;: &#x27;Independent and Sovereign Republic of Kiribati&#x27;, &#x27;longitude&#x27;: 1.41666666, &#x27;latitude&#x27;: 173.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704590, &#x27;areaCode&#x27;: &#x27;XK&#x27;, &#x27;commonName&#x27;: &#x27;Kosovo&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Kosovo&#x27;, &#x27;longitude&#x27;: 42.666667, &#x27;latitude&#x27;: 21.166667, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865362, &#x27;areaCode&#x27;: &#x27;KW&#x27;, &#x27;commonName&#x27;: &#x27;Kuwait&#x27;, &#x27;officialName&#x27;: &#x27;State of Kuwait&#x27;, &#x27;longitude&#x27;: 29.5, &#x27;latitude&#x27;: 45.75, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813447, &#x27;areaCode&#x27;: &#x27;KG&#x27;, &#x27;commonName&#x27;: &#x27;Kyrgyzstan&#x27;, &#x27;officialName&#x27;: &#x27;Kyrgyz Republic&#x27;, &#x27;longitude&#x27;: 41.0, &#x27;latitude&#x27;: 75.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813465, &#x27;areaCode&#x27;: &#x27;LA&#x27;, &#x27;commonName&#x27;: &#x27;Laos&#x27;, &#x27;officialName&#x27;: &quot;Lao People&#x27;s Democratic Republic&quot;, &#x27;longitude&#x27;: 18.0, &#x27;latitude&#x27;: 105.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865382, &#x27;areaCode&#x27;: &#x27;LV&#x27;, &#x27;commonName&#x27;: &#x27;Latvia&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Latvia&#x27;, &#x27;longitude&#x27;: 57.0, &#x27;latitude&#x27;: 25.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704595, &#x27;areaCode&#x27;: &#x27;LB&#x27;, &#x27;commonName&#x27;: &#x27;Lebanon&#x27;, &#x27;officialName&#x27;: &#x27;Lebanese Republic&#x27;, &#x27;longitude&#x27;: 33.83333333, &#x27;latitude&#x27;: 35.83333333, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865349, &#x27;areaCode&#x27;: &#x27;LS&#x27;, &#x27;commonName&#x27;: &#x27;Lesotho&#x27;, &#x27;officialName&#x27;: &#x27;Kingdom of Lesotho&#x27;, &#x27;longitude&#x27;: -29.5, &#x27;latitude&#x27;: 28.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813451, &#x27;areaCode&#x27;: &#x27;LR&#x27;, &#x27;commonName&#x27;: &#x27;Liberia&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Liberia&#x27;, &#x27;longitude&#x27;: 6.5, &#x27;latitude&#x27;: -9.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865397, &#x27;areaCode&#x27;: &#x27;LY&#x27;, &#x27;commonName&#x27;: &#x27;Libya&#x27;, &#x27;officialName&#x27;: &#x27;State of Libya&#x27;, &#x27;longitude&#x27;: 25.0, &#x27;latitude&#x27;: 17.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865392, &#x27;areaCode&#x27;: &#x27;LI&#x27;, &#x27;commonName&#x27;: &#x27;Liechtenstein&#x27;, &#x27;officialName&#x27;: &#x27;Principality of Liechtenstein&#x27;, &#x27;longitude&#x27;: 47.26666666, &#x27;latitude&#x27;: 9.53333333, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687109533710, &#x27;areaCode&#x27;: &#x27;LT&#x27;, &#x27;commonName&#x27;: &#x27;Lithuania&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Lithuania&#x27;, &#x27;longitude&#x27;: 56.0, &#x27;latitude&#x27;: 24.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687138893828, &#x27;areaCode&#x27;: &#x27;LU&#x27;, &#x27;commonName&#x27;: &#x27;Luxembourg&#x27;, &#x27;officialName&#x27;: &#x27;Grand Duchy of Luxembourg&#x27;, &#x27;longitude&#x27;: 49.75, &#x27;latitude&#x27;: 6.16666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790036, &#x27;areaCode&#x27;: &#x27;MO&#x27;, &#x27;commonName&#x27;: &#x27;Macau&#x27;, &#x27;officialName&#x27;: &quot;Macao Special Administrative Region of the People&#x27;s Republic of China&quot;, &#x27;longitude&#x27;: 22.16666666, &#x27;latitude&#x27;: 113.55, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687109533698, &#x27;areaCode&#x27;: &#x27;MG&#x27;, &#x27;commonName&#x27;: &#x27;Madagascar&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Madagascar&#x27;, &#x27;longitude&#x27;: -20.0, &#x27;latitude&#x27;: 47.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865383, &#x27;areaCode&#x27;: &#x27;MW&#x27;, &#x27;commonName&#x27;: &#x27;Malawi&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Malawi&#x27;, &#x27;longitude&#x27;: -13.5, &#x27;latitude&#x27;: 34.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813477, &#x27;areaCode&#x27;: &#x27;MY&#x27;, &#x27;commonName&#x27;: &#x27;Malaysia&#x27;, &#x27;officialName&#x27;: &#x27;Malaysia&#x27;, &#x27;longitude&#x27;: 2.5, &#x27;latitude&#x27;: 112.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813472, &#x27;areaCode&#x27;: &#x27;MV&#x27;, &#x27;commonName&#x27;: &#x27;Maldives&#x27;, &#x27;officialName&#x27;: &#x27;Republic of the Maldives&#x27;, &#x27;longitude&#x27;: 3.25, &#x27;latitude&#x27;: 73.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865384, &#x27;areaCode&#x27;: &#x27;ML&#x27;, &#x27;commonName&#x27;: &#x27;Mali&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Mali&#x27;, &#x27;longitude&#x27;: 17.0, &#x27;latitude&#x27;: -4.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813454, &#x27;areaCode&#x27;: &#x27;MT&#x27;, &#x27;commonName&#x27;: &#x27;Malta&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Malta&#x27;, &#x27;longitude&#x27;: 35.9375, &#x27;latitude&#x27;: 14.3754, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140047, &#x27;areaCode&#x27;: &#x27;MH&#x27;, &#x27;commonName&#x27;: &#x27;Marshall Islands&#x27;, &#x27;officialName&#x27;: &#x27;Republic of the Marshall Islands&#x27;, &#x27;longitude&#x27;: 9.0, &#x27;latitude&#x27;: 168.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813467, &#x27;areaCode&#x27;: &#x27;MQ&#x27;, &#x27;commonName&#x27;: &#x27;Martinique&#x27;, &#x27;officialName&#x27;: &#x27;Martinique&#x27;, &#x27;longitude&#x27;: 14.666667, &#x27;latitude&#x27;: -61.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790027, &#x27;areaCode&#x27;: &#x27;MR&#x27;, &#x27;commonName&#x27;: &#x27;Mauritania&#x27;, &#x27;officialName&#x27;: &#x27;Islamic Republic of Mauritania&#x27;, &#x27;longitude&#x27;: 20.0, &#x27;latitude&#x27;: -12.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687138893829, &#x27;areaCode&#x27;: &#x27;MU&#x27;, &#x27;commonName&#x27;: &#x27;Mauritius&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Mauritius&#x27;, &#x27;longitude&#x27;: -20.28333333, &#x27;latitude&#x27;: 57.55, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865359, &#x27;areaCode&#x27;: &#x27;YT&#x27;, &#x27;commonName&#x27;: &#x27;Mayotte&#x27;, &#x27;officialName&#x27;: &#x27;Department of Mayotte&#x27;, &#x27;longitude&#x27;: -12.83333333, &#x27;latitude&#x27;: 45.16666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865368, &#x27;areaCode&#x27;: &#x27;MX&#x27;, &#x27;commonName&#x27;: &#x27;Mexico&#x27;, &#x27;officialName&#x27;: &#x27;United Mexican States&#x27;, &#x27;longitude&#x27;: 23.0, &#x27;latitude&#x27;: -102.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865372, &#x27;areaCode&#x27;: &#x27;FM&#x27;, &#x27;commonName&#x27;: &#x27;Micronesia&#x27;, &#x27;officialName&#x27;: &#x27;Federated States of Micronesia&#x27;, &#x27;longitude&#x27;: 6.91666666, &#x27;latitude&#x27;: 158.25, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790034, &#x27;areaCode&#x27;: &#x27;MD&#x27;, &#x27;commonName&#x27;: &#x27;Moldova&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Moldova&#x27;, &#x27;longitude&#x27;: 47.0, &#x27;latitude&#x27;: 29.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687109533716, &#x27;areaCode&#x27;: &#x27;MC&#x27;, &#x27;commonName&#x27;: &#x27;Monaco&#x27;, &#x27;officialName&#x27;: &#x27;Principality of Monaco&#x27;, &#x27;longitude&#x27;: 43.73333333, &#x27;latitude&#x27;: 7.4, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704597, &#x27;areaCode&#x27;: &#x27;MN&#x27;, &#x27;commonName&#x27;: &#x27;Mongolia&#x27;, &#x27;officialName&#x27;: &#x27;Mongolia&#x27;, &#x27;longitude&#x27;: 46.0, &#x27;latitude&#x27;: 105.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865380, &#x27;areaCode&#x27;: &#x27;ME&#x27;, &#x27;commonName&#x27;: &#x27;Montenegro&#x27;, &#x27;officialName&#x27;: &#x27;Montenegro&#x27;, &#x27;longitude&#x27;: 42.5, &#x27;latitude&#x27;: 19.3, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865386, &#x27;areaCode&#x27;: &#x27;MS&#x27;, &#x27;commonName&#x27;: &#x27;Montserrat&#x27;, &#x27;officialName&#x27;: &#x27;Montserrat&#x27;, &#x27;longitude&#x27;: 16.75, &#x27;latitude&#x27;: -62.2, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865357, &#x27;areaCode&#x27;: &#x27;MA&#x27;, &#x27;commonName&#x27;: &#x27;Morocco&#x27;, &#x27;officialName&#x27;: &#x27;Kingdom of Morocco&#x27;, &#x27;longitude&#x27;: 32.0, &#x27;latitude&#x27;: -5.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865381, &#x27;areaCode&#x27;: &#x27;MZ&#x27;, &#x27;commonName&#x27;: &#x27;Mozambique&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Mozambique&#x27;, &#x27;longitude&#x27;: -18.25, &#x27;latitude&#x27;: 35.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813443, &#x27;areaCode&#x27;: &#x27;MM&#x27;, &#x27;commonName&#x27;: &#x27;Myanmar&#x27;, &#x27;officialName&#x27;: &#x27;Republic of the Union of Myanmar&#x27;, &#x27;longitude&#x27;: 22.0, &#x27;latitude&#x27;: 98.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790029, &#x27;areaCode&#x27;: &#x27;NA&#x27;, &#x27;commonName&#x27;: &#x27;Namibia&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Namibia&#x27;, &#x27;longitude&#x27;: -22.0, &#x27;latitude&#x27;: 17.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865395, &#x27;areaCode&#x27;: &#x27;NR&#x27;, &#x27;commonName&#x27;: &#x27;Nauru&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Nauru&#x27;, &#x27;longitude&#x27;: -0.53333333, &#x27;latitude&#x27;: 166.91666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704589, &#x27;areaCode&#x27;: &#x27;NP&#x27;, &#x27;commonName&#x27;: &#x27;Nepal&#x27;, &#x27;officialName&#x27;: &#x27;Federal Democratic Republic of Nepal&#x27;, &#x27;longitude&#x27;: 28.0, &#x27;latitude&#x27;: 84.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704606, &#x27;areaCode&#x27;: &#x27;NL&#x27;, &#x27;commonName&#x27;: &#x27;Netherlands&#x27;, &#x27;officialName&#x27;: &#x27;Kingdom of the Netherlands&#x27;, &#x27;longitude&#x27;: 52.5, &#x27;latitude&#x27;: 5.75, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704583, &#x27;areaCode&#x27;: &#x27;NC&#x27;, &#x27;commonName&#x27;: &#x27;New Caledonia&#x27;, &#x27;officialName&#x27;: &#x27;New Caledonia&#x27;, &#x27;longitude&#x27;: -21.5, &#x27;latitude&#x27;: 165.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140045, &#x27;areaCode&#x27;: &#x27;NZ&#x27;, &#x27;commonName&#x27;: &#x27;New Zealand&#x27;, &#x27;officialName&#x27;: &#x27;New Zealand&#x27;, &#x27;longitude&#x27;: -41.0, &#x27;latitude&#x27;: 174.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687138893832, &#x27;areaCode&#x27;: &#x27;NI&#x27;, &#x27;commonName&#x27;: &#x27;Nicaragua&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Nicaragua&#x27;, &#x27;longitude&#x27;: 13.0, &#x27;latitude&#x27;: -85.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687138893836, &#x27;areaCode&#x27;: &#x27;NE&#x27;, &#x27;commonName&#x27;: &#x27;Niger&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Niger&#x27;, &#x27;longitude&#x27;: 16.0, &#x27;latitude&#x27;: 8.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687025647625, &#x27;areaCode&#x27;: &#x27;NG&#x27;, &#x27;commonName&#x27;: &#x27;Nigeria&#x27;, &#x27;officialName&#x27;: &#x27;Federal Republic of Nigeria&#x27;, &#x27;longitude&#x27;: 10.0, &#x27;latitude&#x27;: 8.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687138893833, &#x27;areaCode&#x27;: &#x27;NU&#x27;, &#x27;commonName&#x27;: &#x27;Niue&#x27;, &#x27;officialName&#x27;: &#x27;Niue&#x27;, &#x27;longitude&#x27;: -19.03333333, &#x27;latitude&#x27;: -169.86666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865346, &#x27;areaCode&#x27;: &#x27;NF&#x27;, &#x27;commonName&#x27;: &#x27;Norfolk Island&#x27;, &#x27;officialName&#x27;: &#x27;Territory of Norfolk Island&#x27;, &#x27;longitude&#x27;: -29.03333333, &#x27;latitude&#x27;: 167.95, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790035, &#x27;areaCode&#x27;: &#x27;KP&#x27;, &#x27;commonName&#x27;: &#x27;North Korea&#x27;, &#x27;officialName&#x27;: &quot;Democratic People&#x27;s Republic of Korea&quot;, &#x27;longitude&#x27;: 40.0, &#x27;latitude&#x27;: 127.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790021, &#x27;areaCode&#x27;: &#x27;MK&#x27;, &#x27;commonName&#x27;: &#x27;North Macedonia&#x27;, &#x27;officialName&#x27;: &#x27;Republic of North Macedonia&#x27;, &#x27;longitude&#x27;: 41.83333333, &#x27;latitude&#x27;: 22.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687138893826, &#x27;areaCode&#x27;: &#x27;MP&#x27;, &#x27;commonName&#x27;: &#x27;Northern Mariana Islands&#x27;, &#x27;officialName&#x27;: &#x27;Commonwealth of the Northern Mariana Islands&#x27;, &#x27;longitude&#x27;: 15.2, &#x27;latitude&#x27;: 145.75, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687109533700, &#x27;areaCode&#x27;: &#x27;NO&#x27;, &#x27;commonName&#x27;: &#x27;Norway&#x27;, &#x27;officialName&#x27;: &#x27;Kingdom of Norway&#x27;, &#x27;longitude&#x27;: 62.0, &#x27;latitude&#x27;: 10.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813462, &#x27;areaCode&#x27;: &#x27;OM&#x27;, &#x27;commonName&#x27;: &#x27;Oman&#x27;, &#x27;officialName&#x27;: &#x27;Sultanate of Oman&#x27;, &#x27;longitude&#x27;: 21.0, &#x27;latitude&#x27;: 57.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790024, &#x27;areaCode&#x27;: &#x27;PK&#x27;, &#x27;commonName&#x27;: &#x27;Pakistan&#x27;, &#x27;officialName&#x27;: &#x27;Islamic Republic of Pakistan&#x27;, &#x27;longitude&#x27;: 30.0, &#x27;latitude&#x27;: 70.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687025647626, &#x27;areaCode&#x27;: &#x27;PW&#x27;, &#x27;commonName&#x27;: &#x27;Palau&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Palau&#x27;, &#x27;longitude&#x27;: 7.5, &#x27;latitude&#x27;: 134.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687025647622, &#x27;areaCode&#x27;: &#x27;PS&#x27;, &#x27;commonName&#x27;: &#x27;Palestine&#x27;, &#x27;officialName&#x27;: &#x27;State of Palestine&#x27;, &#x27;longitude&#x27;: 31.9, &#x27;latitude&#x27;: 35.2, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687025647621, &#x27;areaCode&#x27;: &#x27;PA&#x27;, &#x27;commonName&#x27;: &#x27;Panama&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Panama&#x27;, &#x27;longitude&#x27;: 9.0, &#x27;latitude&#x27;: -80.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687109533705, &#x27;areaCode&#x27;: &#x27;PG&#x27;, &#x27;commonName&#x27;: &#x27;Papua New Guinea&#x27;, &#x27;officialName&#x27;: &#x27;Independent State of Papua New Guinea&#x27;, &#x27;longitude&#x27;: -6.0, &#x27;latitude&#x27;: 147.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704599, &#x27;areaCode&#x27;: &#x27;PY&#x27;, &#x27;commonName&#x27;: &#x27;Paraguay&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Paraguay&#x27;, &#x27;longitude&#x27;: -23.0, &#x27;latitude&#x27;: -58.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813445, &#x27;areaCode&#x27;: &#x27;PE&#x27;, &#x27;commonName&#x27;: &#x27;Peru&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Peru&#x27;, &#x27;longitude&#x27;: -10.0, &#x27;latitude&#x27;: -76.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704592, &#x27;areaCode&#x27;: &#x27;PH&#x27;, &#x27;commonName&#x27;: &#x27;Philippines&#x27;, &#x27;officialName&#x27;: &#x27;Republic of the Philippines&#x27;, &#x27;longitude&#x27;: 13.0, &#x27;latitude&#x27;: 122.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813475, &#x27;areaCode&#x27;: &#x27;PN&#x27;, &#x27;commonName&#x27;: &#x27;Pitcairn Islands&#x27;, &#x27;officialName&#x27;: &#x27;Pitcairn Group of Islands&#x27;, &#x27;longitude&#x27;: -25.06666666, &#x27;latitude&#x27;: -130.1, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704578, &#x27;areaCode&#x27;: &#x27;PL&#x27;, &#x27;commonName&#x27;: &#x27;Poland&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Poland&#x27;, &#x27;longitude&#x27;: 52.0, &#x27;latitude&#x27;: 20.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687025647630, &#x27;areaCode&#x27;: &#x27;PT&#x27;, &#x27;commonName&#x27;: &#x27;Portugal&#x27;, &#x27;officialName&#x27;: &#x27;Portuguese Republic&#x27;, &#x27;longitude&#x27;: 39.5, &#x27;latitude&#x27;: -8.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140058, &#x27;areaCode&#x27;: &#x27;PR&#x27;, &#x27;commonName&#x27;: &#x27;Puerto Rico&#x27;, &#x27;officialName&#x27;: &#x27;Commonwealth of Puerto Rico&#x27;, &#x27;longitude&#x27;: 18.25, &#x27;latitude&#x27;: -66.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865393, &#x27;areaCode&#x27;: &#x27;QA&#x27;, &#x27;commonName&#x27;: &#x27;Qatar&#x27;, &#x27;officialName&#x27;: &#x27;State of Qatar&#x27;, &#x27;longitude&#x27;: 25.5, &#x27;latitude&#x27;: 51.25, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704580, &#x27;areaCode&#x27;: &#x27;CG&#x27;, &#x27;commonName&#x27;: &#x27;Republic of the Congo&#x27;, &#x27;officialName&#x27;: &#x27;Republic of the Congo&#x27;, &#x27;longitude&#x27;: -1.0, &#x27;latitude&#x27;: 15.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865363, &#x27;areaCode&#x27;: &#x27;RE&#x27;, &#x27;commonName&#x27;: &#x27;Réunion&#x27;, &#x27;officialName&#x27;: &#x27;Réunion Island&#x27;, &#x27;longitude&#x27;: -21.15, &#x27;latitude&#x27;: 55.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865365, &#x27;areaCode&#x27;: &#x27;RO&#x27;, &#x27;commonName&#x27;: &#x27;Romania&#x27;, &#x27;officialName&#x27;: &#x27;Romania&#x27;, &#x27;longitude&#x27;: 46.0, &#x27;latitude&#x27;: 25.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140037, &#x27;areaCode&#x27;: &#x27;RU&#x27;, &#x27;commonName&#x27;: &#x27;Russia&#x27;, &#x27;officialName&#x27;: &#x27;Russian Federation&#x27;, &#x27;longitude&#x27;: 60.0, &#x27;latitude&#x27;: 100.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687109533706, &#x27;areaCode&#x27;: &#x27;RW&#x27;, &#x27;commonName&#x27;: &#x27;Rwanda&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Rwanda&#x27;, &#x27;longitude&#x27;: -2.0, &#x27;latitude&#x27;: 30.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865371, &#x27;areaCode&#x27;: &#x27;BL&#x27;, &#x27;commonName&#x27;: &#x27;Saint Barthélemy&#x27;, &#x27;officialName&#x27;: &#x27;Collectivity of Saint Barthélemy&#x27;, &#x27;longitude&#x27;: 18.5, &#x27;latitude&#x27;: -63.41666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687109533713, &#x27;areaCode&#x27;: &#x27;SH&#x27;, &#x27;commonName&#x27;: &#x27;Saint Helena, Ascension and Tristan da Cunha&#x27;, &#x27;officialName&#x27;: &#x27;Saint Helena, Ascension and Tristan da Cunha&#x27;, &#x27;longitude&#x27;: -15.95, &#x27;latitude&#x27;: -5.72, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865348, &#x27;areaCode&#x27;: &#x27;KN&#x27;, &#x27;commonName&#x27;: &#x27;Saint Kitts and Nevis&#x27;, &#x27;officialName&#x27;: &#x27;Federation of Saint Christopher and Nevis&#x27;, &#x27;longitude&#x27;: 17.33333333, &#x27;latitude&#x27;: -62.75, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687138893838, &#x27;areaCode&#x27;: &#x27;LC&#x27;, &#x27;commonName&#x27;: &#x27;Saint Lucia&#x27;, &#x27;officialName&#x27;: &#x27;Saint Lucia&#x27;, &#x27;longitude&#x27;: 13.88333333, &#x27;latitude&#x27;: -60.96666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865369, &#x27;areaCode&#x27;: &#x27;MF&#x27;, &#x27;commonName&#x27;: &#x27;Saint Martin&#x27;, &#x27;officialName&#x27;: &#x27;Saint Martin&#x27;, &#x27;longitude&#x27;: 18.0708, &#x27;latitude&#x27;: 63.0501, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704593, &#x27;areaCode&#x27;: &#x27;PM&#x27;, &#x27;commonName&#x27;: &#x27;Saint Pierre and Miquelon&#x27;, &#x27;officialName&#x27;: &#x27;Saint Pierre and Miquelon&#x27;, &#x27;longitude&#x27;: 46.83333333, &#x27;latitude&#x27;: -56.33333333, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865354, &#x27;areaCode&#x27;: &#x27;VC&#x27;, &#x27;commonName&#x27;: &#x27;Saint Vincent and the Grenadines&#x27;, &#x27;officialName&#x27;: &#x27;Saint Vincent and the Grenadines&#x27;, &#x27;longitude&#x27;: 13.25, &#x27;latitude&#x27;: -61.2, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790020, &#x27;areaCode&#x27;: &#x27;WS&#x27;, &#x27;commonName&#x27;: &#x27;Samoa&#x27;, &#x27;officialName&#x27;: &#x27;Independent State of Samoa&#x27;, &#x27;longitude&#x27;: -13.58333333, &#x27;latitude&#x27;: -172.33333333, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704584, &#x27;areaCode&#x27;: &#x27;SM&#x27;, &#x27;commonName&#x27;: &#x27;San Marino&#x27;, &#x27;officialName&#x27;: &#x27;Republic of San Marino&#x27;, &#x27;longitude&#x27;: 43.76666666, &#x27;latitude&#x27;: 12.41666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865366, &#x27;areaCode&#x27;: &#x27;ST&#x27;, &#x27;commonName&#x27;: &#x27;São Tomé and Príncipe&#x27;, &#x27;officialName&#x27;: &#x27;Democratic Republic of São Tomé and Príncipe&#x27;, &#x27;longitude&#x27;: 1.0, &#x27;latitude&#x27;: 7.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704579, &#x27;areaCode&#x27;: &#x27;SA&#x27;, &#x27;commonName&#x27;: &#x27;Saudi Arabia&#x27;, &#x27;officialName&#x27;: &#x27;Kingdom of Saudi Arabia&#x27;, &#x27;longitude&#x27;: 25.0, &#x27;latitude&#x27;: 45.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813446, &#x27;areaCode&#x27;: &#x27;SN&#x27;, &#x27;commonName&#x27;: &#x27;Senegal&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Senegal&#x27;, &#x27;longitude&#x27;: 14.0, &#x27;latitude&#x27;: -14.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687109533709, &#x27;areaCode&#x27;: &#x27;RS&#x27;, &#x27;commonName&#x27;: &#x27;Serbia&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Serbia&#x27;, &#x27;longitude&#x27;: 44.0, &#x27;latitude&#x27;: 21.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790038, &#x27;areaCode&#x27;: &#x27;SC&#x27;, &#x27;commonName&#x27;: &#x27;Seychelles&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Seychelles&#x27;, &#x27;longitude&#x27;: -4.58333333, &#x27;latitude&#x27;: 55.66666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140048, &#x27;areaCode&#x27;: &#x27;SL&#x27;, &#x27;commonName&#x27;: &#x27;Sierra Leone&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Sierra Leone&#x27;, &#x27;longitude&#x27;: 8.5, &#x27;latitude&#x27;: -11.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140059, &#x27;areaCode&#x27;: &#x27;SG&#x27;, &#x27;commonName&#x27;: &#x27;Singapore&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Singapore&#x27;, &#x27;longitude&#x27;: 1.36666666, &#x27;latitude&#x27;: 103.8, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687025647618, &#x27;areaCode&#x27;: &#x27;SX&#x27;, &#x27;commonName&#x27;: &#x27;Sint Maarten&#x27;, &#x27;officialName&#x27;: &#x27;Sint Maarten&#x27;, &#x27;longitude&#x27;: 18.033333, &#x27;latitude&#x27;: -63.05, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790032, &#x27;areaCode&#x27;: &#x27;SK&#x27;, &#x27;commonName&#x27;: &#x27;Slovakia&#x27;, &#x27;officialName&#x27;: &#x27;Slovak Republic&#x27;, &#x27;longitude&#x27;: 48.66666666, &#x27;latitude&#x27;: 19.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140042, &#x27;areaCode&#x27;: &#x27;SI&#x27;, &#x27;commonName&#x27;: &#x27;Slovenia&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Slovenia&#x27;, &#x27;longitude&#x27;: 46.11666666, &#x27;latitude&#x27;: 14.81666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865394, &#x27;areaCode&#x27;: &#x27;SB&#x27;, &#x27;commonName&#x27;: &#x27;Solomon Islands&#x27;, &#x27;officialName&#x27;: &#x27;Solomon Islands&#x27;, &#x27;longitude&#x27;: -8.0, &#x27;latitude&#x27;: 159.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865401, &#x27;areaCode&#x27;: &#x27;SO&#x27;, &#x27;commonName&#x27;: &#x27;Somalia&#x27;, &#x27;officialName&#x27;: &#x27;Federal Republic of Somalia&#x27;, &#x27;longitude&#x27;: 10.0, &#x27;latitude&#x27;: 49.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813452, &#x27;areaCode&#x27;: &#x27;ZA&#x27;, &#x27;commonName&#x27;: &#x27;South Africa&#x27;, &#x27;officialName&#x27;: &#x27;Republic of South Africa&#x27;, &#x27;longitude&#x27;: -29.0, &#x27;latitude&#x27;: 24.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687025647631, &#x27;areaCode&#x27;: &#x27;GS&#x27;, &#x27;commonName&#x27;: &#x27;South Georgia&#x27;, &#x27;officialName&#x27;: &#x27;South Georgia and the South Sandwich Islands&#x27;, &#x27;longitude&#x27;: -54.5, &#x27;latitude&#x27;: -37.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704587, &#x27;areaCode&#x27;: &#x27;KR&#x27;, &#x27;commonName&#x27;: &#x27;South Korea&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Korea&#x27;, &#x27;longitude&#x27;: 37.0, &#x27;latitude&#x27;: 127.5, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790031, &#x27;areaCode&#x27;: &#x27;SS&#x27;, &#x27;commonName&#x27;: &#x27;South Sudan&#x27;, &#x27;officialName&#x27;: &#x27;Republic of South Sudan&#x27;, &#x27;longitude&#x27;: 7.0, &#x27;latitude&#x27;: 30.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813469, &#x27;areaCode&#x27;: &#x27;ES&#x27;, &#x27;commonName&#x27;: &#x27;Spain&#x27;, &#x27;officialName&#x27;: &#x27;Kingdom of Spain&#x27;, &#x27;longitude&#x27;: 40.0, &#x27;latitude&#x27;: -4.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687025647632, &#x27;areaCode&#x27;: &#x27;LK&#x27;, &#x27;commonName&#x27;: &#x27;Sri Lanka&#x27;, &#x27;officialName&#x27;: &#x27;Democratic Socialist Republic of Sri Lanka&#x27;, &#x27;longitude&#x27;: 7.0, &#x27;latitude&#x27;: 81.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813463, &#x27;areaCode&#x27;: &#x27;SD&#x27;, &#x27;commonName&#x27;: &#x27;Sudan&#x27;, &#x27;officialName&#x27;: &#x27;Republic of the Sudan&#x27;, &#x27;longitude&#x27;: 15.0, &#x27;latitude&#x27;: 30.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865376, &#x27;areaCode&#x27;: &#x27;SR&#x27;, &#x27;commonName&#x27;: &#x27;Suriname&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Suriname&#x27;, &#x27;longitude&#x27;: 4.0, &#x27;latitude&#x27;: -56.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704600, &#x27;areaCode&#x27;: &#x27;SJ&#x27;, &#x27;commonName&#x27;: &#x27;Svalbard and Jan Mayen&#x27;, &#x27;officialName&#x27;: &#x27;Svalbard og Jan Mayen&#x27;, &#x27;longitude&#x27;: 78.0, &#x27;latitude&#x27;: 20.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865378, &#x27;areaCode&#x27;: &#x27;SE&#x27;, &#x27;commonName&#x27;: &#x27;Sweden&#x27;, &#x27;officialName&#x27;: &#x27;Kingdom of Sweden&#x27;, &#x27;longitude&#x27;: 62.0, &#x27;latitude&#x27;: 15.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140051, &#x27;areaCode&#x27;: &#x27;CH&#x27;, &#x27;commonName&#x27;: &#x27;Switzerland&#x27;, &#x27;officialName&#x27;: &#x27;Swiss Confederation&#x27;, &#x27;longitude&#x27;: 47.0, &#x27;latitude&#x27;: 8.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790044, &#x27;areaCode&#x27;: &#x27;SY&#x27;, &#x27;commonName&#x27;: &#x27;Syria&#x27;, &#x27;officialName&#x27;: &#x27;Syrian Arab Republic&#x27;, &#x27;longitude&#x27;: 35.0, &#x27;latitude&#x27;: 38.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790046, &#x27;areaCode&#x27;: &#x27;TJ&#x27;, &#x27;commonName&#x27;: &#x27;Tajikistan&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Tajikistan&#x27;, &#x27;longitude&#x27;: 39.0, &#x27;latitude&#x27;: 71.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687025647628, &#x27;areaCode&#x27;: &#x27;TZ&#x27;, &#x27;commonName&#x27;: &#x27;Tanzania&#x27;, &#x27;officialName&#x27;: &#x27;United Republic of Tanzania&#x27;, &#x27;longitude&#x27;: -6.0, &#x27;latitude&#x27;: 35.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140044, &#x27;areaCode&#x27;: &#x27;TH&#x27;, &#x27;commonName&#x27;: &#x27;Thailand&#x27;, &#x27;officialName&#x27;: &#x27;Kingdom of Thailand&#x27;, &#x27;longitude&#x27;: 15.0, &#x27;latitude&#x27;: 100.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687294083074, &#x27;areaCode&#x27;: &#x27;TL&#x27;, &#x27;commonName&#x27;: &#x27;Timor-Leste&#x27;, &#x27;officialName&#x27;: &#x27;Democratic Republic of Timor-Leste&#x27;, &#x27;longitude&#x27;: -8.83333333, &#x27;latitude&#x27;: 125.91666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687138893827, &#x27;areaCode&#x27;: &#x27;TG&#x27;, &#x27;commonName&#x27;: &#x27;Togo&#x27;, &#x27;officialName&#x27;: &#x27;Togolese Republic&#x27;, &#x27;longitude&#x27;: 8.0, &#x27;latitude&#x27;: 1.16666666, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704601, &#x27;areaCode&#x27;: &#x27;TK&#x27;, &#x27;commonName&#x27;: &#x27;Tokelau&#x27;, &#x27;officialName&#x27;: &#x27;Tokelau&#x27;, &#x27;longitude&#x27;: -9.0, &#x27;latitude&#x27;: -172.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865350, &#x27;areaCode&#x27;: &#x27;TO&#x27;, &#x27;commonName&#x27;: &#x27;Tonga&#x27;, &#x27;officialName&#x27;: &#x27;Kingdom of Tonga&#x27;, &#x27;longitude&#x27;: -20.0, &#x27;latitude&#x27;: -175.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140057, &#x27;areaCode&#x27;: &#x27;TT&#x27;, &#x27;commonName&#x27;: &#x27;Trinidad and Tobago&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Trinidad and Tobago&#x27;, &#x27;longitude&#x27;: 10.6918, &#x27;latitude&#x27;: -61.2225, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140046, &#x27;areaCode&#x27;: &#x27;TN&#x27;, &#x27;commonName&#x27;: &#x27;Tunisia&#x27;, &#x27;officialName&#x27;: &#x27;Tunisian Republic&#x27;, &#x27;longitude&#x27;: 34.0, &#x27;latitude&#x27;: 9.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813450, &#x27;areaCode&#x27;: &#x27;TR&#x27;, &#x27;commonName&#x27;: &#x27;Turkey&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Turkey&#x27;, &#x27;longitude&#x27;: 39.0, &#x27;latitude&#x27;: 35.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865373, &#x27;areaCode&#x27;: &#x27;TM&#x27;, &#x27;commonName&#x27;: &#x27;Turkmenistan&#x27;, &#x27;officialName&#x27;: &#x27;Turkmenistan&#x27;, &#x27;longitude&#x27;: 40.0, &#x27;latitude&#x27;: 60.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790037, &#x27;areaCode&#x27;: &#x27;TC&#x27;, &#x27;commonName&#x27;: &#x27;Turks and Caicos Islands&#x27;, &#x27;officialName&#x27;: &#x27;Turks and Caicos Islands&#x27;, &#x27;longitude&#x27;: 21.75, &#x27;latitude&#x27;: -71.58333333, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865345, &#x27;areaCode&#x27;: &#x27;TV&#x27;, &#x27;commonName&#x27;: &#x27;Tuvalu&#x27;, &#x27;officialName&#x27;: &#x27;Tuvalu&#x27;, &#x27;longitude&#x27;: -8.0, &#x27;latitude&#x27;: 178.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813480, &#x27;areaCode&#x27;: &#x27;UG&#x27;, &#x27;commonName&#x27;: &#x27;Uganda&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Uganda&#x27;, &#x27;longitude&#x27;: 1.0, &#x27;latitude&#x27;: 32.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687138893834, &#x27;areaCode&#x27;: &#x27;UA&#x27;, &#x27;commonName&#x27;: &#x27;Ukraine&#x27;, &#x27;officialName&#x27;: &#x27;Ukraine&#x27;, &#x27;longitude&#x27;: 49.0, &#x27;latitude&#x27;: 32.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687109533714, &#x27;areaCode&#x27;: &#x27;AE&#x27;, &#x27;commonName&#x27;: &#x27;United Arab Emirates&#x27;, &#x27;officialName&#x27;: &#x27;United Arab Emirates&#x27;, &#x27;longitude&#x27;: 24.0, &#x27;latitude&#x27;: 54.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140034, &#x27;areaCode&#x27;: &#x27;GB&#x27;, &#x27;commonName&#x27;: &#x27;United Kingdom&#x27;, &#x27;officialName&#x27;: &#x27;United Kingdom of Great Britain and Northern Ireland&#x27;, &#x27;longitude&#x27;: 54.0, &#x27;latitude&#x27;: -2.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140050, &#x27;areaCode&#x27;: &#x27;US&#x27;, &#x27;commonName&#x27;: &#x27;United States&#x27;, &#x27;officialName&#x27;: &#x27;United States of America&#x27;, &#x27;longitude&#x27;: 38.0, &#x27;latitude&#x27;: -97.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790048, &#x27;areaCode&#x27;: &#x27;UM&#x27;, &#x27;commonName&#x27;: &#x27;United States Minor Outlying Islands&#x27;, &#x27;officialName&#x27;: &#x27;United States Minor Outlying Islands&#x27;, &#x27;longitude&#x27;: 19.3, &#x27;latitude&#x27;: 166.633333, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686983704582, &#x27;areaCode&#x27;: &#x27;VI&#x27;, &#x27;commonName&#x27;: &#x27;United States Virgin Islands&#x27;, &#x27;officialName&#x27;: &#x27;Virgin Islands of the United States&#x27;, &#x27;longitude&#x27;: 18.35, &#x27;latitude&#x27;: -64.933333, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813461, &#x27;areaCode&#x27;: &#x27;UY&#x27;, &#x27;commonName&#x27;: &#x27;Uruguay&#x27;, &#x27;officialName&#x27;: &#x27;Oriental Republic of Uruguay&#x27;, &#x27;longitude&#x27;: -33.0, &#x27;latitude&#x27;: -56.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813471, &#x27;areaCode&#x27;: &#x27;UZ&#x27;, &#x27;commonName&#x27;: &#x27;Uzbekistan&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Uzbekistan&#x27;, &#x27;longitude&#x27;: 41.0, &#x27;latitude&#x27;: 64.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813460, &#x27;areaCode&#x27;: &#x27;VU&#x27;, &#x27;commonName&#x27;: &#x27;Vanuatu&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Vanuatu&#x27;, &#x27;longitude&#x27;: -16.0, &#x27;latitude&#x27;: 167.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865385, &#x27;areaCode&#x27;: &#x27;VA&#x27;, &#x27;commonName&#x27;: &#x27;Vatican City&#x27;, &#x27;officialName&#x27;: &#x27;Vatican City State&#x27;, &#x27;longitude&#x27;: 41.9, &#x27;latitude&#x27;: 12.45, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735686920790047, &#x27;areaCode&#x27;: &#x27;VE&#x27;, &#x27;commonName&#x27;: &#x27;Venezuela&#x27;, &#x27;officialName&#x27;: &#x27;Bolivarian Republic of Venezuela&#x27;, &#x27;longitude&#x27;: 8.0, &#x27;latitude&#x27;: -66.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813476, &#x27;areaCode&#x27;: &#x27;VN&#x27;, &#x27;commonName&#x27;: &#x27;Vietnam&#x27;, &#x27;officialName&#x27;: &#x27;Socialist Republic of Vietnam&#x27;, &#x27;longitude&#x27;: 16.16666666, &#x27;latitude&#x27;: 107.83333333, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865404, &#x27;areaCode&#x27;: &#x27;WF&#x27;, &#x27;commonName&#x27;: &#x27;Wallis and Futuna&#x27;, &#x27;officialName&#x27;: &#x27;Territory of the Wallis and Futuna Islands&#x27;, &#x27;longitude&#x27;: -13.3, &#x27;latitude&#x27;: -176.2, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687050813442, &#x27;areaCode&#x27;: &#x27;EH&#x27;, &#x27;commonName&#x27;: &#x27;Western Sahara&#x27;, &#x27;officialName&#x27;: &#x27;Sahrawi Arab Democratic Republic&#x27;, &#x27;longitude&#x27;: 24.5, &#x27;latitude&#x27;: -13.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687025647623, &#x27;areaCode&#x27;: &#x27;YE&#x27;, &#x27;commonName&#x27;: &#x27;Yemen&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Yemen&#x27;, &#x27;longitude&#x27;: 15.0, &#x27;latitude&#x27;: 48.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687159865390, &#x27;areaCode&#x27;: &#x27;ZM&#x27;, &#x27;commonName&#x27;: &#x27;Zambia&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Zambia&#x27;, &#x27;longitude&#x27;: -15.0, &#x27;latitude&#x27;: 30.0, &#x27;flag&#x27;: &#x27;&#x27;}, {&#x27;id&#x27;: 1729735687252140039, &#x27;areaCode&#x27;: &#x27;ZW&#x27;, &#x27;commonName&#x27;: &#x27;Zimbabwe&#x27;, &#x27;officialName&#x27;: &#x27;Republic of Zimbabwe&#x27;, &#x27;longitude&#x27;: -20.0, &#x27;latitude&#x27;: 30.0, &#x27;flag&#x27;: &#x27;&#x27;}]}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Auto_case/test_002_login.py::Test_002_login::test_login[/login-data0-headers0]</td>
+          <td class="col-duration">0.18</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>http://121.40.203.12:8888/login
+200
+{&#x27;code&#x27;: &#x27;0000&#x27;, &#x27;msg&#x27;: &#x27;Success&#x27;, &#x27;data&#x27;: {&#x27;accessToken&#x27;: &#x27;eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxNzM4MDY4OTczNDcyODkwODgxIiwiYXVkIjoid2ViIiwiZXhwIjoxNzA5MDIyODEyfQ.OngHwnKhPbdptHoVH5Nz5WqnuYLkf7PFY0i0dczG1Rw&#x27;, &#x27;refreshToken&#x27;: &#x27;eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxNzM4MDY4OTczNDcyODkwODgxIiwiYXVkIjoid2ViIiwiZXhwIjoxNzA5NTQxMjEyfQ.yVUPkQI62XAlSc8grwmY7-y_3lLej3b0IF2G3LNwWdU&#x27;}}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Auto_case/test_003_home.py::Test_003_home::test_plant_number[/v2/plant/statistics]</td>
+          <td class="col-duration">0.08</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>http://121.40.203.12:8888/v2/plant/statistics
+200
+{&#x27;code&#x27;: &#x27;0000&#x27;, &#x27;msg&#x27;: &#x27;Success&#x27;, &#x27;data&#x27;: {&#x27;totalPlantCount&#x27;: 11, &#x27;totalOfflinePlantCount&#x27;: 8, &#x27;totalWarnPlantCount&#x27;: 1}}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Auto_case/test_001_register.py::Test_001_register::test_queryByCode[/company/queryByCode/-IN5N8N]</td>
+          <td class="col-duration">0.07</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>http://121.40.203.12:8888/company/queryByCode/IN5N8N
+200
+{&#x27;code&#x27;: &#x27;0000&#x27;, &#x27;msg&#x27;: &#x27;Success&#x27;, &#x27;data&#x27;: {&#x27;companyId&#x27;: &#x27;1733050949145640962&#x27;, &#x27;companyName&#x27;: &#x27;many companys&#x27;, &#x27;companyCode&#x27;: &#x27;IN5N8N&#x27;, &#x27;contactId&#x27;: &#x27;1676457759186055169&#x27;, &#x27;contactName&#x27;: &#x27;jimmy&#x27;, &#x27;email&#x27;: &#x27;jimmy.xie@wattsonic.com&#x27;, &#x27;region&#x27;: &#x27;CN&#x27;, &#x27;regionName&#x27;: &#x27;China&#x27;, &#x27;address&#x27;: &#x27;uxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsfwuxisdfsf&#x27;, &#x27;createId&#x27;: &#x27;1676457759186055169&#x27;, &#x27;createName&#x27;: &#x27;jimmy&#x27;, &#x27;createTime&#x27;: 1702026519470, &#x27;children&#x27;: []}}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Auto_case/test_002_login.py::Test_002_login::test_user_current[/user/current]</td>
+          <td class="col-duration">0.20</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>http://121.40.203.12:8888/user/current
+200
+{&#x27;code&#x27;: &#x27;0000&#x27;, &#x27;msg&#x27;: &#x27;Success&#x27;, &#x27;data&#x27;: {&#x27;userId&#x27;: &#x27;1738068973472890881&#x27;, &#x27;email&#x27;: &#x27;11@wattsonic.com&#x27;, &#x27;name&#x27;: &#x27;11&#x27;, &#x27;companyId&#x27;: &#x27;1661323896449331202&#x27;, &#x27;companyName&#x27;: &#x27;Wuxi Wattsonic Energy Technology Co., Ltd.&#x27;, &#x27;roleId&#x27;: &#x27;1661609309336420353&#x27;, &#x27;roleName&#x27;: &#x27;ADMIN&#x27;, &#x27;avatar&#x27;: None, &#x27;status&#x27;: 2, &#x27;createName&#x27;: &#x27;johnson.ding@wattsonic.com&#x27;}}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Auto_case/test_003_home.py::Test_003_home::test_wokerorder_number[/workOrder/count?status=0]</td>
+          <td class="col-duration">0.06</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>http://121.40.203.12:8888/workOrder/count?status=0
+200
+{&#x27;code&#x27;: &#x27;0000&#x27;, &#x27;msg&#x27;: &#x27;Success&#x27;, &#x27;data&#x27;: {&#x27;allCount&#x27;: 20, &#x27;mentionedMeCount&#x27;: 21}}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Auto_case/test_001_register.py::Test_001_register::test_companyregister[/company/register-data0]</td>
+          <td class="col-duration">0.17</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>http://121.40.203.12:8888/company/register
+200
+{&#x27;code&#x27;: &#x27;0000&#x27;, &#x27;msg&#x27;: &#x27;Success&#x27;, &#x27;data&#x27;: True}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Auto_case/test_003_home.py::Test_003_home::test_ESG[/v2/plant/esg]</td>
+          <td class="col-duration">0.09</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>http://121.40.203.12:8888/v2/plant/esg
+200
+{&#x27;code&#x27;: &#x27;0000&#x27;, &#x27;msg&#x27;: &#x27;Success&#x27;, &#x27;data&#x27;: {&#x27;totalDischarge&#x27;: 1267.5, &#x27;dioxide&#x27;: 994.9, &#x27;trees&#x27;: 90.4, &#x27;carbons&#x27;: 376.8}}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Auto_case/test_001_register.py::Test_001_register::test_userregister[/user/register-data0]</td>
+          <td class="col-duration">0.17</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>http://121.40.203.12:8888/user/register
+200
+{&#x27;code&#x27;: &#x27;0000&#x27;, &#x27;msg&#x27;: &#x27;Success&#x27;, &#x27;data&#x27;: True}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Auto_case/test_003_home.py::Test_003_home::test_dailygrow[/v2/plant/dailyGrowth-data0]</td>
+          <td class="col-duration">0.07</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>http://121.40.203.12:8888/v2/plant/dailyGrowth
+200
+{&#x27;code&#x27;: &#x27;0000&#x27;, &#x27;msg&#x27;: &#x27;Success&#x27;, &#x27;data&#x27;: {&#x27;date&#x27;: [&#x27;2024-01-28&#x27;, &#x27;2024-01-29&#x27;, &#x27;2024-01-30&#x27;, &#x27;2024-01-31&#x27;, &#x27;2024-02-01&#x27;, &#x27;2024-02-02&#x27;, &#x27;2024-02-03&#x27;, &#x27;2024-02-04&#x27;, &#x27;2024-02-05&#x27;, &#x27;2024-02-06&#x27;, &#x27;2024-02-07&#x27;, &#x27;2024-02-08&#x27;, &#x27;2024-02-09&#x27;, &#x27;2024-02-10&#x27;, &#x27;2024-02-11&#x27;, &#x27;2024-02-12&#x27;, &#x27;2024-02-13&#x27;, &#x27;2024-02-14&#x27;, &#x27;2024-02-15&#x27;, &#x27;2024-02-16&#x27;, &#x27;2024-02-17&#x27;, &#x27;2024-02-18&#x27;, &#x27;2024-02-19&#x27;, &#x27;2024-02-20&#x27;, &#x27;2024-02-21&#x27;, &#x27;2024-02-22&#x27;, &#x27;2024-02-23&#x27;, &#x27;2024-02-24&#x27;, &#x27;2024-02-25&#x27;, &#x27;2024-02-26&#x27;], &#x27;count&#x27;: [0, 1, 5, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]}}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Auto_case/test_001_register.py::Test_001_register::test_deletedata</td>
+          <td class="col-duration">0.35</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Auto_case/test_003_home.py::Test_003_home::test_topProducts[/v2/plant/topProducts-data0]</td>
+          <td class="col-duration">0.10</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>http://121.40.203.12:8888/v2/plant/topProducts
+200
+{&#x27;code&#x27;: &#x27;0000&#x27;, &#x27;msg&#x27;: &#x27;Success&#x27;, &#x27;data&#x27;: [{&#x27;count&#x27;: 7, &#x27;percent&#x27;: &#x27;31%&#x27;, &#x27;batOuterModel&#x27;: &#x27;Li-LV-R-5&#x27;}, {&#x27;count&#x27;: 3, &#x27;percent&#x27;: &#x27;13%&#x27;, &#x27;batOuterModel&#x27;: &#x27;Li-LV-R-5&#x27;}, {&#x27;count&#x27;: 3, &#x27;percent&#x27;: &#x27;13%&#x27;, &#x27;batOuterModel&#x27;: &#x27;Li-HV-R-2.6&#x27;}, {&#x27;count&#x27;: 2, &#x27;percent&#x27;: &#x27;9%&#x27;, &#x27;batOuterModel&#x27;: &#x27;Li-HV-R-3.84&#x27;}, {&#x27;count&#x27;: 2, &#x27;percent&#x27;: &#x27;9%&#x27;, &#x27;batOuterModel&#x27;: &#x27;Li-HV-R-3.84&#x27;}, {&#x27;count&#x27;: 5, &#x27;percent&#x27;: &#x27;25%&#x27;, &#x27;batOuterModel&#x27;: &#x27;Others&#x27;}]}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Auto_case/test_003_home.py::Test_003_home::test_topDistributors[/v2/plant/topDistributors-data0]</td>
+          <td class="col-duration">0.08</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>http://121.40.203.12:8888/v2/plant/topDistributors
+200
+{&#x27;code&#x27;: &#x27;0000&#x27;, &#x27;msg&#x27;: &#x27;Success&#x27;, &#x27;data&#x27;: [{&#x27;count&#x27;: 11, &#x27;distributor&#x27;: &#x27;Wuxi Wattsonic Energy Technology Co., Ltd.&#x27;}]}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Auto_case/test_003_home.py::Test_003_home::test_topPlants[/v2/plant/topPlants-data0]</td>
+          <td class="col-duration">0.07</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>http://121.40.203.12:8888/v2/plant/topPlants
+200
+{&#x27;code&#x27;: &#x27;9999&#x27;, &#x27;msg&#x27;: &#x27;Unknown error&#x27;, &#x27;data&#x27;: None}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Auto_case/test_003_home.py::Test_003_home::test_maplist[/v2/plant/map/list]</td>
+          <td class="col-duration">0.08</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>http://121.40.203.12:8888/v2/plant/map/list
+200
+{&#x27;code&#x27;: &#x27;9999&#x27;, &#x27;msg&#x27;: &#x27;Unknown error&#x27;, &#x27;data&#x27;: None}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Auto_case/test_003_home.py::Test_003_home::test_searchtips[/v2/plant/search/tips-data0]</td>
+          <td class="col-duration">0.06</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>http://121.40.203.12:8888/v2/plant/search/tips
+200
+{&#x27;code&#x27;: &#x27;0000&#x27;, &#x27;msg&#x27;: &#x27;Success&#x27;, &#x27;data&#x27;: {&#x27;subMasterSns&#x27;: [], &#x27;plants&#x27;: [&#x27;gen3-test&#x27;, &#x27;test001&#x27;, &#x27;test002&#x27;, &#x27;test006&#x27;, &#x27;test007&#x27;, &#x27;test008&#x27;, &#x27;test010(gen2hv)&#x27;, &#x27;test_gen2hv(only view)&#x27;, &#x27;test_gen2lv_multiple(only view)&#x27;, &#x27;test_gen2lv_single(only view)&#x27;], &#x27;distributors&#x27;: [], &#x27;installers&#x27;: [&#x27;testingcompany001&#x27;]}}
+<br/></div></td></tr></tbody></table></body></html>

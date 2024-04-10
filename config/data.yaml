@@ -1,0 +1,177 @@
+base:
+  url: http://121.40.203.12:8888
+#  url: https://desk-test.wattsonic.cn/basic-api
+  username: lyy@wattsonic.com
+  password: Wt1234
+  username2: 11@wattsonic.com
+  password2: Wt1234
+#163邮箱发送企业邮箱配置
+email:
+  smtp_server: smtp.163.com
+  port: 465
+  psw: TLNOFJSYQPYWISOA
+  sender: liyanyan8759@163.com
+  receiver: jena.li@wattsonic.com,2972049643@qq.com
+countrylist:
+  name: countrylist
+  request:
+    method: get
+    url: /countryMap/list
+    data: None
+  validate: None
+queryByCode:
+  name: queryByCode
+  request:
+    method: get
+    url: /company/queryByCode/
+    data:  289889
+  validate: None
+companyregister:
+  name: companyregister
+  request:
+    method: post
+    url: /company/register
+    data: {"parentId":"1733050949145640962","region":"CN","address":"无锡人民路108号","contactName":"ll8759","password":"Wt123456","confirmPassword":"Wt123456","checkBox":true,"mobile":"17798736211","sex":1}
+  validate: None
+userregister:
+  name: userregister
+  request:
+    method: post
+    url: /user/register
+    data: {
+      "companyCode": "289889",
+      "name": "ll8759",
+      "password": "Wt123456",
+      "sex": 0
+    }
+  validate: None
+
+enduserregister:
+  name: enduserregister
+  request:
+    method: post
+    url: /user/end/register
+    data: {
+      "name": "ll8759",
+      "password": "Wt123456",
+      "sex": 0,
+      "mobile": "1779873611"
+    }
+  validate: None
+
+
+login:
+  name: login
+  request:
+    method: post
+    url: /login
+    headers: {'Accept-Language':'en-us','Platform':'web'}
+    data: {
+      "password": "Wt1234",
+      "username": "11@wattsonic.com"
+    }
+  validate: None
+user_current:
+  name: user_current
+  request:
+    method: get
+    url: /user/current
+    data: None
+  validate: None
+password:
+  name: password
+  request:
+    method: put
+    url: /user/password
+    data: {
+      "newPassword": "Wattsonic11",
+      "oldPassword": "Wattsonic11"
+    }
+  validate: None
+
+
+plant_number:
+  name: plant_number
+  request:
+    method: get
+    url: /v2/plant/statistics
+    data: None
+  validate: None
+wokerorder_number:
+  name: wokerorder_number
+  request:
+    method: get
+    url: /workOrder/count?status=0
+    data: None
+  validate: None
+ESG:
+  name: ESG
+  request:
+    method: get
+    url: /v2/plant/esg
+    data: None
+  validate: None
+
+daily_grow:
+  name: daily_grow
+  request:
+    method: get
+    url: /v2/plant/dailyGrowth
+    data: {
+      "days":30,
+      "zoneOffsetMinutes":480
+    }
+  validate: None
+topProducts:
+  name: topProducts
+  request:
+    method: get
+    url: /v2/plant/topProducts
+    data: {
+      "current":1,
+      "size":5,
+    }
+  validate: None
+topDistributors:
+  name: topDistributors
+  request:
+    method: get
+    url: /v2/plant/topDistributors
+    data: {
+      "current":1,
+      "size":10,
+    }
+  validate: None
+topPlants:
+  name: topPlants
+  request:
+    method: get
+    url: /v2/plant/topPlants
+    data: {
+      "current":1,
+      "size":10,
+    }
+  validate: None
+maplist:
+  name: maplist
+  request:
+    method: get
+    url: /v2/plant/map/list
+    data: {
+      "keywork":'test'
+    }
+  validate: None
+searchtips:
+  name: searchtips
+  request:
+    method: get
+    url: /v2/plant/search/tips
+    data: {
+      "keyword":'test'
+    }
+  validate: None
+
+
+
+
+
