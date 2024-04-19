@@ -18,6 +18,7 @@ password=yaml_read.read_test_yaml(path)['base']['password']
 # path='\data.yaml'
 #获取headers
 headers=info.login(url,username,password)
+print (headers)
 #0，为uct，utc+8为480，utc-8为-480
 class Test_003_home(object):
     #公司电站数量统计（总数量/离线数量/警告数量）
